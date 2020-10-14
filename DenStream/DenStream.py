@@ -129,11 +129,11 @@ class DenStream:
             return []
         p_micro_cluster_weights = [p_micro_cluster.weight() for p_micro_cluster in
                                    self.p_micro_clusters]
-        dbscan = DBSCAN(eps=100, min_samples=2, algorithm='brute')
+        dbscan = DBSCAN(eps=0.8, min_samples=self.mu, algorithm='brute')
         dbscan.fit(p_micro_cluster_centers,
                    sample_weight=p_micro_cluster_weights)
         
-        return dbscan.labels_
+        y = []
         for sample in X:
             index, _ = self._get_nearest_micro_cluster(sample,
                                                        self.p_micro_clusters)
@@ -214,11 +214,42 @@ class DenStream:
             raise ValueError("Shapes of X and sample_weight do not match.")
         return sample_weight
 
+from sklearn import datasets
+import matplotlib.pyplot as plt
 
-data = np.random.random([10000, 5]) * 1000
-clusterer = DenStream(lambd=0.1, eps=100, beta=0.5, mu=3)
+numSample = 50
+ax = plt.subplot()
+# data = datasets.make_circles(numSample, noise=0.05, factor=0.1)[0]
+data = datasets.load_iris(True)[0]
+clusterer = DenStream(lambd=0.1, eps=0.2, beta=0.6, mu=2)
+iter = 0
 for row in data:
-    # clusterer.partial_fit([row], 1)
-    print(clusterer.fit_predict([row]))
-    print(f"Number of p_micro_clusters is {len(clusterer.p_micro_clusters)}")
-    print(f"Number of o_micro_clusters is {len(clusterer.o_micro_clusters)}")
+    iter += 1
+    y = clusterer.fit_predict([row])
+    print(y)
+    if len(y)>0 and y[0] == 0:
+        # positive.append(item)
+        plt.scatter(row[0], row[1], c='blue', alpha=0.6)
+    elif len(y)>0 and y[0] == 1:
+        plt.scatter(row[0], row[1], c='green', alpha=0.5)
+    else:
+        plt.scatter(row[0], row[1], c='red', alpha=0.5)
+    print(f"{iter} Number of p_micro_clusters is {len(clusterer.p_micro_clusters)}")
+    print(f"{iter} Number of o_micro_clusters is {len(clusterer.o_micro_clusters)}")
+    
+for item in clusterer.p_micro_clusters:
+    ax.scatter(item.center()[0], item.center()[1], marker='v', c='black')
+    print(item.center())
+plt.show()
+# data = np.random.random([10000, 5]) * 1000
+# clusterer = DenStream(lambd=0.1, eps=0.001, beta=0.5, mu=3)
+# with open('bbb.csv', 'r') as f:
+#     data = f.readlines()
+# iter = 0
+# for row in data[:100]:
+#     iter += 1
+#     row = row.strip().split(',')
+#     # clusterer.partial_fit([row], 1)
+#     print(clusterer.fit_predict([row]))
+#     print(f"{iter} Number of p_micro_clusters is {len(clusterer.p_micro_clusters)}")
+#     print(f"{iter} Number of o_micro_clusters is {len(clusterer.o_micro_clusters)}")

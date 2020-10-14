@@ -14,7 +14,7 @@ import sys
 class CluStream(BaseEstimator, ClusterMixin):
     #Implementation of CluStream
 
-    def __init__(self,  nb_initial_points=1000, time_window=1000, timestamp=0, clocktime=0, nb_micro_cluster=100,
+    def __init__(self,  nb_initial_points=1000, time_window=1000, timestamp=0, clocktime=0, nb_micro_cluster=500,
                 nb_macro_cluster=20, micro_clusters=[], alpha=2, l=2, h=1000):
         self.start_time = time.time()
         self.nb_initial_points = nb_initial_points
@@ -162,12 +162,11 @@ class CluStream(BaseEstimator, ClusterMixin):
         return result
 
 clusterer = CluStream()
-clusterer.fit()
 with open('bbb.csv', 'r') as f:
     lines = f.readlines()
-    for line in lines[:100]:
+    for line in lines[:10]:
         line = line.strip().split(',')
-        print(clusterer.predict([line]))
+        # print(clusterer.predict([line]))
         clusterer.partial_fit([line], 1)
         print(f"Number of micro_clusters is {len(clusterer.micro_clusters)}")
         print(f"Number of nb_created_clusters is {clusterer.nb_created_clusters}")
@@ -177,8 +176,8 @@ with open('bbb.csv', 'r') as f:
 # clusterer.fit(data)
 # data = np.random.random([100000, 50]) * 10
 
-for row in data:
-    print(clusterer.predict([row]))
-    clusterer.partial_fit([row], 1)
-    print(f"Number of micro_clusters is {len(clusterer.micro_clusters)}")
-    print(f"Number of nb_created_clusters is {clusterer.nb_created_clusters}")
+# for row in data:
+#     print(clusterer.predict([row]))
+#     clusterer.partial_fit([row], 1)
+#     print(f"Number of micro_clusters is {len(clusterer.micro_clusters)}")
+#     print(f"Number of nb_created_clusters is {clusterer.nb_created_clusters}")
