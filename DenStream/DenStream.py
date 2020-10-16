@@ -5,7 +5,15 @@ from copy import copy
 from MicroCluster import MicroCluster
 from math import ceil
 from sklearn.cluster import DBSCAN
+import time
+import logging
 
+online, offline, dbscan_time = 0, 0, 0
+
+def ConfigConsoleLogging():
+    fmt = '[%(levelname)1.1s %(asctime)s %(process)d %(name)s %(funcName)s:%(lineno)d] %(message)s'
+    datefmt = '%Y-%m-%d %H:%M:%S'
+    logging.basicConfig(stream=sys.stdout, format=fmt, datefmt=datefmt, level=logging.DEBUG)
 
 class DenStream:
 
@@ -107,6 +115,10 @@ class DenStream:
             Cluster labels
         """
 
+        global online, offline, dbscan_time
+
+        start = time.process_time()
+
         X = check_array(X, dtype=np.float64, order="C")
 
         n_samples, _ = X.shape
@@ -122,16 +134,24 @@ class DenStream:
         for sample, weight in zip(X, sample_weight):
             self._partial_fit(sample, weight)
         
+        online += time.process_time() - start
+        onlineEnd = time.process_time()
+        
         p_micro_cluster_centers = np.array([p_micro_cluster.center() for
                                             p_micro_cluster in
                                             self.p_micro_clusters])
         if len(p_micro_cluster_centers) == 0:
+            offline += time.process_time() - onlineEnd
             return []
         p_micro_cluster_weights = [p_micro_cluster.weight() for p_micro_cluster in
                                    self.p_micro_clusters]
+
+        dbscan_before_time = time.process_time()
         dbscan = DBSCAN(eps=0.8, min_samples=self.mu, algorithm='brute')
         dbscan.fit(p_micro_cluster_centers,
                    sample_weight=p_micro_cluster_weights)
+        dbscan_after_time = time.process_time()
+        dbscan_time += dbscan_after_time - dbscan_before_time
         
         y = []
         for sample in X:
@@ -139,7 +159,15 @@ class DenStream:
                                                        self.p_micro_clusters)
             y.append(dbscan.labels_[index])
 
-        return y
+        offline += time.process_time() - onlineEnd
+        SSQ = 0
+        for l in range(1+max(dbscan.labels_)):
+            ps = p_micro_cluster_centers[dbscan.labels_[:] == l]
+            m = np.mean(ps)
+            for p in ps:
+                SSQ += sum((p-m) ** 2)
+                    
+        return y, SSQ
 
     def _get_nearest_micro_cluster(self, sample, micro_clusters):
         smallest_distance = sys.float_info.max
@@ -214,33 +242,45 @@ class DenStream:
             raise ValueError("Shapes of X and sample_weight do not match.")
         return sample_weight
 
-from sklearn import datasets
-import matplotlib.pyplot as plt
+def RunData(path=None):
 
-numSample = 50
-ax = plt.subplot()
-# data = datasets.make_circles(numSample, noise=0.05, factor=0.1)[0]
-data = datasets.load_iris(True)[0]
-clusterer = DenStream(lambd=0.1, eps=0.2, beta=0.6, mu=2)
-iter = 0
-for row in data:
-    iter += 1
-    y = clusterer.fit_predict([row])
-    print(y)
-    if len(y)>0 and y[0] == 0:
-        # positive.append(item)
-        plt.scatter(row[0], row[1], c='blue', alpha=0.6)
-    elif len(y)>0 and y[0] == 1:
-        plt.scatter(row[0], row[1], c='green', alpha=0.5)
-    else:
-        plt.scatter(row[0], row[1], c='red', alpha=0.5)
-    print(f"{iter} Number of p_micro_clusters is {len(clusterer.p_micro_clusters)}")
-    print(f"{iter} Number of o_micro_clusters is {len(clusterer.o_micro_clusters)}")
-    
-for item in clusterer.p_micro_clusters:
-    ax.scatter(item.center()[0], item.center()[1], marker='v', c='black')
-    print(item.center())
-plt.show()
+    from sklearn import datasets
+    import matplotlib.pyplot as plt
+    import numpy
+
+    global online, offline, dbscan_time
+
+    # load data
+    print(f"path: {path}")
+    data = []
+    with open(path, 'r') as f:
+        lines = f.readlines()
+        for line in lines:
+            now = list(map(float, line.strip().split(',') ))
+            data.append(now)
+    data = numpy.array(data)
+
+    # ax = plt.subplot()
+    # clusterer = DenStream(lambd=0.001, eps=0.4374, beta=0.0319, mu=14.6812)
+    clusterer = DenStream(lambd=0.001, eps=0.4374, beta=0.2, mu=14.6812)
+    iter = 0
+    N = 20
+    print(f"{N}; {len(data)//N}")
+    for i in range(len(data)//N):
+        iter += 1
+        y, ssq = clusterer.fit_predict(data[i*N:(i+1)*N])
+        # if iter % 100 == 0:
+        print(f"{iter} label: {y}; SSQ: {ssq}; online: {online}s; offline: {offline}s; dbscan_time:{dbscan_time}s")
+        print(f"{iter} Number of p_micro_clusters is {len(clusterer.p_micro_clusters)}")
+        print(f"{iter} Number of o_micro_clusters is {len(clusterer.o_micro_clusters)}")
+        print(f"aoaoao\t{(i+1)*N}\t{ssq}\t{online}\t{offline}\t{dbscan_time}")
+        
+    # for item in clusterer.p_micro_clusters:
+    #     ax.scatter(item.center()[0], item.center()[1], marker='v', c='black')
+        # print(item.center())
+    # plt.show()
+
+RunData(r'I:\数据流聚类算法实现\aaa_norm.csv')
 # data = np.random.random([10000, 5]) * 1000
 # clusterer = DenStream(lambd=0.1, eps=0.001, beta=0.5, mu=3)
 # with open('bbb.csv', 'r') as f:
